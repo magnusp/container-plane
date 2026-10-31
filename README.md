@@ -153,9 +153,10 @@ application's observed boot time.
 
 ## Deploy model
 
-1. Pull the image. A pull failure exits 3 before anything is stopped.
-2. Inspect or create the shared network.
-3. Read `.Config.Image` from the running container. That is the rollback target.
+1. Read `.Config.Image` from the running container. That is the rollback target.
+   This happens before the pull, so a mutable tag cannot re-point the target.
+2. Pull the image. A pull failure exits 3 before anything is stopped.
+3. Inspect or create the shared network.
 4. Stop the service, honouring `--drain`.
 5. Start the new image with `docker compose up -d --no-deps`.
 6. Observe, decide, and wait in a bounded loop.
@@ -166,6 +167,10 @@ application's observed boot time.
 
 The loop is stop-first: the old container stops before the new one starts. Put a
 proxy in front of the service if clients must not see the gap.
+
+Use an immutable tag or digest for each deploy. `--pull` refreshes a mutable tag,
+but the tag alone does not identify a build; `--pull=false` trusts whatever is
+already on the daemon.
 
 There is no history file and no host timer. A stored history can name an image
 that has been pruned; the running container cannot. A deploy that fails and

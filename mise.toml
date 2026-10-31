@@ -1,6 +1,6 @@
 [tools]
-# Pinned to the `toolchain` directive in go.mod. `actions/setup-go` reads the
-# same line, so CI and a local build resolve one toolchain.
+# Pinned to the `toolchain` directive in go.mod. CI installs Go from the same
+# go.mod, so a local build and a release resolve the same language version.
 go = "1.27.2"
 
 [tasks.build]
