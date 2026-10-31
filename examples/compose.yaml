@@ -1,0 +1,29 @@
+# The compose contract cplane expects. One service, the image from ${IMAGE},
+# and an optional shared network from ${CPLANE_NETWORK}.
+#
+# Deploy it with:
+#   cplane deploy --image ghcr.io/example/app:v1 --service app \
+#     --network example-net --compose-file examples/compose.yaml
+#
+# Infrastructure (a database, cache, or proxy) is deployed separately and joins
+# the same network. cplane only creates the network when it is missing; it does
+# not start or gate other services.
+services:
+  app:
+    image: ${IMAGE:?set IMAGE to the image to deploy}
+    networks:
+      - shared
+    healthcheck:
+      # A healthcheck is optional. Without one, pass a probe command with
+      # --probe, for example:
+      #   --probe 'wget -q -O /dev/null http://127.0.0.1:8080/health'
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+
+networks:
+  shared:
+    external: true
+    name: ${CPLANE_NETWORK:?set CPLANE_NETWORK to the shared network}
