@@ -135,6 +135,71 @@ func TestReadEnvDefaults(t *testing.T) {
 	}
 }
 
+func TestCapturePreviousReadsTheRunningContainer(t *testing.T) {
+	runtime := cplane.NewExecRuntime(cplane.ExecConfig{
+		Project:      "demo",
+		Service:      "app",
+		ComposeFile:  "compose.yaml",
+		DesiredImage: "app:v2",
+		Run: func(_ context.Context, name string, args []string, _ []string) ([]byte, error) {
+			key := name + " " + strings.Join(args, " ")
+			if strings.Contains(key, " ps -q app") {
+				return []byte("cafe1234\n"), nil
+			}
+			return []byte(`{"State":{"Running":true},"Image":"sha256:old","Config":{"Image":"app:v1"}}`), nil
+		},
+	})
+	desired := cplane.Deployment{Image: "app:v2"}
+	if err := capturePrevious(t.Context(), runtime, &desired); err != nil {
+		t.Fatalf("capturePrevious: %v", err)
+	}
+	if desired.PreviousImage != "app:v1" {
+		t.Fatalf("PreviousImage = %q, want app:v1", desired.PreviousImage)
+	}
+}
+
+func TestCapturePreviousFallsBackToTheImageID(t *testing.T) {
+	runtime := cplane.NewExecRuntime(cplane.ExecConfig{
+		Project:      "demo",
+		Service:      "app",
+		ComposeFile:  "compose.yaml",
+		DesiredImage: "app:v2",
+		Run: func(_ context.Context, name string, args []string, _ []string) ([]byte, error) {
+			key := name + " " + strings.Join(args, " ")
+			if strings.Contains(key, " ps -q app") {
+				return []byte("cafe1234\n"), nil
+			}
+			return []byte(`{"State":{"Running":true},"Image":"sha256:old","Config":{}}`), nil
+		},
+	})
+	desired := cplane.Deployment{Image: "app:v2"}
+	if err := capturePrevious(t.Context(), runtime, &desired); err != nil {
+		t.Fatalf("capturePrevious: %v", err)
+	}
+	if desired.PreviousImage != "sha256:old" {
+		t.Fatalf("PreviousImage = %q, want the image ID", desired.PreviousImage)
+	}
+}
+
+func TestCapturePreviousWithoutAContainer(t *testing.T) {
+	runtime := cplane.NewExecRuntime(cplane.ExecConfig{
+		Project:      "demo",
+		Service:      "app",
+		ComposeFile:  "compose.yaml",
+		DesiredImage: "app:v2",
+		Run: func(context.Context, string, []string, []string) ([]byte, error) {
+			return []byte("\n"), nil
+		},
+	})
+	desired := cplane.Deployment{Image: "app:v2"}
+	if err := capturePrevious(t.Context(), runtime, &desired); err != nil {
+		t.Fatalf("capturePrevious: %v", err)
+	}
+	if desired.PreviousImage != "" {
+		t.Fatalf("PreviousImage = %q, want empty", desired.PreviousImage)
+	}
+}
+
 func TestDefaultProjectUsesTheComposeFileDirectory(t *testing.T) {
 	dir := t.TempDir()
 	if got := defaultProject(filepath.Join(dir, "compose.yaml")); got != filepath.Base(dir) {

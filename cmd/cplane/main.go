@@ -229,6 +229,14 @@ func runDeploy(ctx context.Context, args []string, stdout, stderr io.Writer) err
 		Drain:         *drain,
 	})
 
+	// Capture the rollback target before the pull. A pull can move a mutable
+	// tag, and a reference that resolves to the new image is not a rollback
+	// target. The reconciler keeps the same capture as a fallback for direct
+	// library use.
+	if err := capturePrevious(ctx, runtime, &desired); err != nil {
+		return err
+	}
+
 	if *pull {
 		if err := runtime.Pull(ctx, *image); err != nil {
 			return err
@@ -256,6 +264,21 @@ func runDeploy(ctx context.Context, args []string, stdout, stderr io.Writer) err
 		return fmt.Errorf("%w: deploy of %s did not settle", cplane.ErrDeploy, *image)
 	}
 	fmt.Fprintf(stdout, "deployed %s\n", *image)
+	return nil
+}
+
+func capturePrevious(ctx context.Context, runtime cplane.ExecRuntime, desired *cplane.Deployment) error {
+	state, err := runtime.Inspect(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: inspect the running container: %w", cplane.ErrCompose, err)
+	}
+	if !state.Exists {
+		return nil
+	}
+	desired.PreviousImage = state.ImageRef
+	if desired.PreviousImage == "" {
+		desired.PreviousImage = state.Digest
+	}
 	return nil
 }
 
