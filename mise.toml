@@ -1,0 +1,36 @@
+[tools]
+# Pinned to the `toolchain` directive in go.mod. CI installs Go from the same
+# go.mod, so a local build and a release resolve the same language version.
+go = "1.27.2"
+
+[tasks.build]
+description = "Build cplane for the host platform into bin"
+run = "go build -o bin/cplane ./cmd/cplane"
+
+[tasks.test]
+description = "Run the unit tests"
+run = "go test ./..."
+
+[tasks.check]
+description = "Vet and test with the race detector"
+run = [
+  "go vet ./...",
+  "go test -race ./...",
+]
+
+[tasks.hermetic]
+description = "Prove the module builds and tests in an isolated copy"
+run = "./scripts/hermetic.sh"
+
+[tasks.e2e]
+description = "Run the Docker end-to-end deploy and rollback test"
+run = "CPLANE_E2E=1 ./scripts/e2e.sh"
+
+[tasks.dist]
+description = "Cross-compile cplane for linux and darwin on amd64 and arm64"
+run = """
+for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+  os=${target%/*} arch=${target#*/}
+  CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -o "bin/cplane-$os-$arch" ./cmd/cplane || exit 1
+done
+"""

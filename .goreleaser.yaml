@@ -1,0 +1,67 @@
+# GoReleaser configuration for cplane.
+#
+# A release is cut by pushing a tag such as `v0.1.0`. The tag is bare because
+# this repository releases one artifact; there is no namespace to strip.
+version: 2
+
+project_name: cplane
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cplane
+    main: ./cmd/cplane
+    binary: cplane
+    # CGO off keeps the binaries static, so one artifact runs on a glibc or a
+    # musl host with no matching libc on the machine.
+    env:
+      - CGO_ENABLED=0
+    # Windows is deliberately absent. cplane drives `docker compose` over a
+    # Unix socket or a Docker context; add `windows` the day that changes.
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - '-X main.version={{ .Version }}'
+      - '-X main.commit={{ .FullCommit }}'
+      - '-X main.date={{ .Date }}'
+
+archives:
+  - id: cplane
+    ids:
+      - cplane
+    # A single static binary needs no tarball. checksums.txt carries the
+    # integrity check for the download itself.
+    formats:
+      - binary
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  # Conventional commits write `chore(scope):`, so the optional scope group is
+  # what makes these fire.
+  filters:
+    exclude:
+      - '^(docs|test|chore|ci|build)(\([^)]*\))?:'
+
+release:
+  github:
+    owner: magnusp
+    name: container-plane
+  draft: false
